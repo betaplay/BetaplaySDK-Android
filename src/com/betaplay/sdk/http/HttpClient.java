@@ -17,16 +17,36 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.scheme.PlainSocketFactory;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeRegistry;
+import org.apache.http.conn.ssl.SSLSocketFactory;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.params.HttpConnectionParams;
 import org.apache.http.params.HttpParams;
+
+
 
 /**
  * simple httpclient use to POST acra logs to server in JSON format
@@ -107,7 +127,7 @@ public class HttpClient {
 
 	private void executeRequest(HttpUriRequest request, String url) {
 
-		DefaultHttpClient client = new DefaultHttpClient();
+		DefaultHttpClient client = sslClient(new DefaultHttpClient());
 		HttpParams params = client.getParams();
 
 		// timeout 40 sec
@@ -162,5 +182,61 @@ public class HttpClient {
 		return sb.toString();
 	}
 	
+	/**
+	 * solving problems with ssl
+	 * 
+	 * @param client
+	 * @return
+	 */
+	private DefaultHttpClient sslClient(org.apache.http.client.HttpClient client) {
+	    try {
+	        X509TrustManager tm = new X509TrustManager() { 
+	            public void checkClientTrusted(X509Certificate[] xcs, String string) throws CertificateException {}
+	            public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {}
+	            public X509Certificate[] getAcceptedIssuers() {return null;}
+	        };
+	        SSLContext ctx = SSLContext.getInstance("TLS");
+	        ctx.init(null, new TrustManager[]{tm}, null);
+	        SSLSocketFactory ssf = new CustomSSLSocketFactory(ctx);
+	        ssf.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+	        ClientConnectionManager ccm = client.getConnectionManager();
+	        SchemeRegistry sr = ccm.getSchemeRegistry();
+	        sr.register(new Scheme("http", PlainSocketFactory.getSocketFactory(), 80));
+	        sr.register(new Scheme("https", ssf, 443));
+	        return new DefaultHttpClient(ccm, client.getParams());
+	    } catch (Exception ex) {
+	        return null;
+	    }
+	}
 	
+	private class CustomSSLSocketFactory extends SSLSocketFactory {
+	     SSLContext sslContext = SSLContext.getInstance("TLS");
+
+	     public CustomSSLSocketFactory(KeyStore truststore) throws NoSuchAlgorithmException, KeyManagementException, KeyStoreException, UnrecoverableKeyException {
+	         super(truststore);
+
+	         TrustManager tm = new X509TrustManager() {
+	             public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
+	             public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {}
+	             public X509Certificate[] getAcceptedIssuers() {return null;}
+	         };
+
+	         sslContext.init(null, new TrustManager[] { tm }, null);
+	     }
+
+	     public CustomSSLSocketFactory(SSLContext context) throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException {
+	        super(null);
+	        sslContext = context;
+	     }
+
+	     @Override
+	     public Socket createSocket(Socket socket, String host, int port, boolean autoClose) throws IOException, UnknownHostException {
+	         return sslContext.getSocketFactory().createSocket(socket, host, port, autoClose);
+	     }
+
+	     @Override
+	     public Socket createSocket() throws IOException {
+	         return sslContext.getSocketFactory().createSocket();
+	     }
+	}
 }
