@@ -27,6 +27,7 @@ import android.app.Application;
  * use if like BetaPlayApp to remotely debug your apps
  * 
  * @author Tomas T.
+ * @version 0.2.0
  *
  */
 public class Betaplay extends ACRA {
