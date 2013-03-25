@@ -73,29 +73,31 @@ public class JsonSender implements ReportSender {
 	 * @return
 	 */
 	private JSONObject createJSON(Map<ReportField, String> report) {
-		final JSONObject json = new JSONObject();
+		final JSONObject logWrap = new JSONObject();
+		if (mMapping != null) {
+			final JSONObject json = new JSONObject();
 
-		ReportField[] fields = ACRA.getConfig().customReportContent();
-		if (fields.length == 0) {
-			fields = ACRA.DEFAULT_REPORT_FIELDS;
-		}
-		for (ReportField field : fields) {
-			try {
-				if (mMapping != null || mMapping.get(field) != null) {
-					json.put(mMapping.get(field), report.get(field));
+			ReportField[] fields = ACRA.getConfig().customReportContent();
+			if (fields.length == 0) {
+				fields = ACRA.DEFAULT_REPORT_FIELDS;
+			}
+			
+			for (ReportField field : fields) {
+				try {
+					if (mMapping.get(field) != null && report.get(field) != null) {
+						json.put(mMapping.get(field), report.get(field));
+					}
+				} catch (JSONException e) {
+					Log.e(LOG_NAME, "Error creating JSON", e);
 				}
+			}
+			
+			try {
+				logWrap.put("log", json);
 			} catch (JSONException e) {
-				Log.e(LOG_NAME, "Error creating JSON", e);
+				Log.e(LOG_NAME, "Error wrapping JSON", e);
 			}
 		}
-
-		final JSONObject logWrap = new JSONObject();
-		try {
-			logWrap.put("log", json);
-		} catch (JSONException e) {
-			Log.e(LOG_NAME, "Error wrapping JSON", e);
-		}
-
 		return logWrap;
 	}
 
